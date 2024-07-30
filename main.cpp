@@ -1,6 +1,5 @@
 #define SCREEN_HEIGHT 500
 #define SCREEN_WIDTH 500
-
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <chrono>
@@ -17,7 +16,7 @@ struct particle
         s.setFillColor(sf::Color::White);
         s.setPosition(pos);
     }
-    sf::RectangleShape s{ sf::Vector2f(10, 10) };
+    sf::RectangleShape s{ sf::Vector2f(1, 1) };
     sf::Vector2f pos;
     int posA{};
     int posB{};
@@ -25,45 +24,55 @@ struct particle
 
 void moveDown(particle& x, std::vector<std::vector<int>>& grid)
 {
-    if (x.posA < (SCREEN_HEIGHT / 10 - 1) && grid[x.posA + 1][x.posB] == 0) // Check bounds and if the space below is empty
+    if (x.posA < (SCREEN_HEIGHT - 1) && grid[x.posA + 1][x.posB] == 0)
     {
+        // Move down if possible
         grid[x.posA][x.posB] = 0;
         grid[x.posA + 1][x.posB] = 1;
         x.posA++;
-        x.s.move(0, 10); // Moving down, so y increases
+        x.s.move(0, 1);
         std::cout << "Moved down to (" << x.posA << ", " << x.posB << ")\n";
     }
-    else
+    else if (x.posA < (SCREEN_HEIGHT - 1))
     {
-        // There is something underneath, try to move left or right
+        // Try to move diagonally if not at the bottom
         std::random_device dev;
         std::mt19937 rng(dev());
-        std::uniform_int_distribution<std::mt19937::result_type> dist(0, 1); // distribution in range [0, 1]
+        std::uniform_int_distribution<std::mt19937::result_type> dist(0, 1);
         int random = dist(rng);
-        if (random == 0 && x.posB > 0 && grid[x.posA][x.posB - 1] == 0)
+
+        if (random == 0 && x.posB > 0 && grid[x.posA + 1][x.posB - 1] == 0)
         {
+            // Move diagonally down-left
             grid[x.posA][x.posB] = 0;
-            grid[x.posA][x.posB - 1] = 1;
+            grid[x.posA + 1][x.posB - 1] = 1;
+            x.posA++;
             x.posB--;
-            x.s.move(-10, 0); // Moving left
+            x.s.move(-1, 1);
         }
-        else if (random == 1 && x.posB < (SCREEN_WIDTH / 10 - 1) && grid[x.posA][x.posB + 1] == 0)
+        else if (random == 1 && x.posB < (SCREEN_WIDTH - 1) && grid[x.posA + 1][x.posB + 1] == 0)
         {
+            // Move diagonally down-right
             grid[x.posA][x.posB] = 0;
-            grid[x.posA][x.posB + 1] = 1;
+            grid[x.posA + 1][x.posB + 1] = 1;
+            x.posA++;
             x.posB++;
-            x.s.move(10, 0); // Moving right
+            x.s.move(1, 1);
         }
+        // If can't move diagonally, the particle stays in place
     }
+    // If at the bottom or can't move, do nothing
 }
 
 int main()
 {
     std::chrono::system_clock::time_point t = std::chrono::system_clock::now();
-
+    std::chrono::system_clock::time_point t2 = std::chrono::system_clock::now();
     sf::RenderWindow window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT), "SFML Particle Simulation");
     std::vector<particle> sand_particles{};
-    std::vector<std::vector<int>> grid(SCREEN_HEIGHT / 10, std::vector<int>(SCREEN_WIDTH / 10, 0));
+    std::vector<std::vector<int>> grid(SCREEN_HEIGHT, std::vector<int>(SCREEN_WIDTH, 0));
+
+    int lastMouseX = SCREEN_WIDTH / 2;  // Default to center of screen
 
     while (window.isOpen())
     {
@@ -72,30 +81,32 @@ int main()
         {
             if (event.type == sf::Event::Closed)
                 window.close();
-            if (event.type == sf::Event::MouseButtonPressed)
+            if (event.type == sf::Event::MouseMoved)
             {
-                if (event.mouseButton.button == sf::Mouse::Left)
-                {
-                    int mouseX = event.mouseButton.x / 10;
-                    int mouseY = 0;
-
-                    sand_particles.push_back(particle(sf::Vector2f(mouseX * 10, mouseY * 10), mouseY, mouseX));
-                    grid[mouseY][mouseX] = 1;
-                    std::cout << "Particle added at: " << mouseX << ", " << mouseY << "\n";
-                }
+                lastMouseX = event.mouseMove.x;
             }
         }
 
-        if (std::chrono::system_clock::now() - t >= 25ms)
+        if (std::chrono::system_clock::now() - t >= 0.001ms)
         {
             for (auto& x : sand_particles)
             {
-                if (!x.s.getPosition().y == 0)
-                {
-                    moveDown(x, grid);
-                }
+                moveDown(x, grid);
             }
             t = std::chrono::system_clock::now();
+        }
+
+        if (std::chrono::system_clock::now() - t2 >= 50ms)
+        {
+            int mouseX = lastMouseX;
+            int mouseY = 0;
+            if (grid[mouseY][mouseX] == 0)  // Only add if the spot is empty
+            {
+                sand_particles.push_back(particle(sf::Vector2f(mouseX, mouseY), mouseY, mouseX));
+                grid[mouseY][mouseX] = 1;
+                std::cout << "Particle added at: " << mouseX << ", " << mouseY << "\n";
+            }
+            t2 = std::chrono::system_clock::now();
         }
 
         window.clear();
@@ -105,6 +116,5 @@ int main()
         }
         window.display();
     }
-
     return 0;
 }
